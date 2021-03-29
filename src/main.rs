@@ -18,12 +18,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
 
-    let my_fsm = Arc::new(Mutex::new(fsm::new(client)));
+    let my_fsm = Arc::new(Mutex::new(fsm::new(client).await));
 
     let ticker = tokio::task::spawn(async move {
         loop {
             debug!("Tick!");
-            // my_fsm.handle(fsm::Event::Tick);
+            my_fsm.lock().unwrap().handle(fsm::Event::Tick);
             sleep(Duration::from_secs(1)).await;
         }
     });
@@ -32,8 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         match eventloop.poll().await {
             Ok(Event::Incoming(Incoming::Publish(p))) => {
                 // debug!("Topic: {}, Payload: {:?}", p.topic, p.payload);
-                let mut foo = my_fsm.lock().unwrap();
-                foo.handle(fsm::Event::MQTT {message: p});
+                my_fsm.lock().unwrap().handle(fsm::Event::MQTT {message: p});
             }
             Ok(Event::Incoming(i)) => {
                 trace!("Incoming: {:?}", i);
