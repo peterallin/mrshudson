@@ -8,7 +8,6 @@ use std::time::Duration;
 
 mod fsm;
 
-//fn main() -> Result<(), Box<dyn Error>> {
 fn main() {
 
     pretty_env_logger::init();

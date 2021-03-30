@@ -31,7 +31,7 @@ impl FSM {
     }
 
     pub fn handle(&mut self, event: Event) {
-        match self.state.handle(event) {
+        match self.state.handle(&mut self.client, event) {
             Some(new_state) => {
                 self.state.exit();
                 self.state = new_state;
@@ -45,7 +45,7 @@ impl FSM {
 trait FSMState: std::fmt::Debug {
     fn enter(&self);
     fn exit(&self);
-    fn handle(&self, event: Event) -> Option<Box<dyn FSMState>>;
+    fn handle(&self, client: &mut Client, event: Event) -> Option<Box<dyn FSMState>>;
 }
 
 // #[derive(Debug)]
@@ -69,7 +69,7 @@ impl FSMState for Initialization {
         debug!("Exiting Initialization");
     }
 
-    fn handle(&self, event: Event) -> Option<Box<dyn FSMState>> {
+    fn handle(&self, _client: &mut Client, event: Event) -> Option<Box<dyn FSMState>> {
         debug!("Initialization handler");
         match event {
             _ => Some(Box::new(Daytime))
@@ -86,11 +86,14 @@ impl FSMState for Daytime {
         debug!("Exiting Daytime");
     }
 
-    fn handle(&self, event: Event) -> Option<Box<dyn FSMState>> {
+    fn handle(&self, client: &mut Client, event: Event) -> Option<Box<dyn FSMState>> {
         debug!("Daytime handle");
         match event {
             Event::MQTT { message: m } => { debug!("{}", m.topic) },
-            Event::Tick => { debug!("Tick!") },
+            Event::Tick => {
+                debug!("Tick!");
+                client.publish("test/tick", QoS::AtLeastOnce, false, "Fneee").unwrap();
+            },
         }
         None
     }
