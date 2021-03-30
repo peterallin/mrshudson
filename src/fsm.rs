@@ -42,7 +42,7 @@ impl FSM {
     }
 }
 
-trait FSMState: std::fmt::Debug {
+trait FSMState {
     fn enter(&self);
     fn exit(&self);
     fn handle(&self, client: &mut Client, event: Event) -> Option<Box<dyn FSMState>>;
