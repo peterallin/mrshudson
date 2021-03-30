@@ -22,6 +22,11 @@ pub struct FSM {
 }
 
 impl FSM {
+    pub fn new(client: Client) -> FSM {
+        let mut fsm = FSM { state: Box::new(Initialization), client };
+        fsm.init();
+        fsm
+    }
 
     fn init(&mut self) {
         debug!("FSM init");
@@ -97,10 +102,4 @@ impl FSMState for Daytime {
         }
         None
     }
-}
-
-pub fn new(client: Client) -> FSM {
-    let mut fsm = FSM { state: Box::new(Initialization), client };
-    fsm.init();
-    fsm
 }

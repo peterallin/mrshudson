@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 mod fsm;
+use fsm::FSM;
 
 fn main() {
 
@@ -17,7 +18,7 @@ fn main() {
 
     let (client, mut connection) = Client::new(mqttoptions, 10);
 
-    let mut my_fsm = fsm::new(client);
+    let mut my_fsm = FSM::new(client);
     let (tx, rx) = mpsc::channel();
 
     let ticker_tx = tx.clone();
