@@ -1,7 +1,7 @@
 
 use rumqttc::{
     Publish,
-    AsyncClient,
+    Client,
     // Incoming,
     // Packet,
     QoS
@@ -16,18 +16,17 @@ pub enum Event {
     Tick,
 }
 
-#[derive(Debug)]
 pub struct FSM {
     state: Box<dyn FSMState>,
-    client: AsyncClient,
+    client: Client,
 }
 
 impl FSM {
 
-    async fn init(&self) {
+    fn init(&mut self) {
         debug!("FSM init");
-        self.client.subscribe("shellies/+/+/+/announce", QoS::AtLeastOnce).await.unwrap();
-        self.client.publish("shellies/command", QoS::AtLeastOnce, false, "announce").await.unwrap();
+        self.client.subscribe("shellies/+/+/+/announce", QoS::AtLeastOnce).unwrap();
+        self.client.publish("shellies/command", QoS::AtLeastOnce, false, "announce").unwrap();
 
     }
 
@@ -91,14 +90,14 @@ impl FSMState for Daytime {
         debug!("Daytime handle");
         match event {
             Event::MQTT { message: m } => { debug!("{}", m.topic) },
-            _ => debug!("Dude, I have no idea.")
+            Event::Tick => { debug!("Tick!") },
         }
         None
     }
 }
 
-pub async fn new(client: AsyncClient) -> FSM {
-    let fsm = FSM { state: Box::new(Initialization), client };
-    fsm.init().await;
+pub fn new(client: Client) -> FSM {
+    let mut fsm = FSM { state: Box::new(Initialization), client };
+    fsm.init();
     fsm
 }

@@ -1,50 +1,48 @@
 use pretty_env_logger;
 #[macro_use] extern crate log;
 
-use std::error::Error;
-use rumqttc::{MqttOptions, AsyncClient, Event, Incoming};
-use tokio::time::{sleep, Duration};
-use std::sync::{Arc, Mutex};
+use rumqttc::{MqttOptions, Client, Event, Incoming};
+use std::thread;
+use std::sync::mpsc;
+use std::time::Duration;
 
 mod fsm;
 
-#[tokio::main(worker_threads = 1)]
-async fn main() -> Result<(), Box<dyn Error>> {
+//fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
 
     pretty_env_logger::init();
 
     let mut mqttoptions = MqttOptions::new("rumqtt-sync", "192.168.174.3", 1883);
     mqttoptions.set_keep_alive(5);
 
-    let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
+    let (client, mut connection) = Client::new(mqttoptions, 10);
 
-    let my_fsm = Arc::new(Mutex::new(fsm::new(client).await));
+    let mut my_fsm = fsm::new(client);
+    let (tx, rx) = mpsc::channel();
 
-    let ticker = tokio::task::spawn(async move {
+    let ticker_tx = tx.clone();
+    thread::spawn(move || {
         loop {
-            debug!("Tick!");
-            my_fsm.lock().unwrap().handle(fsm::Event::Tick);
-            sleep(Duration::from_secs(1)).await;
+            ticker_tx.send(fsm::Event::Tick).unwrap();
+            thread::sleep(Duration::from_secs(1));
+        };
+    });
+
+    thread::spawn(move || {
+        for notification in connection.iter() {
+            match notification {
+                Ok(Event::Incoming(Incoming::Publish(p))) => {
+                    tx.send(fsm::Event::MQTT {message: p}).unwrap();
+                },
+                Ok(Event::Incoming(i)) => { trace!("Incoming: {:?}", i); },
+                Ok(Event::Outgoing(o)) => { trace!("Outgoing: {:?}",o); },
+                Err(_) => { panic!("I panicked."); },
+            }
         }
     });
 
-    loop {
-        match eventloop.poll().await {
-            Ok(Event::Incoming(Incoming::Publish(p))) => {
-                // debug!("Topic: {}, Payload: {:?}", p.topic, p.payload);
-                my_fsm.lock().unwrap().handle(fsm::Event::MQTT {message: p});
-            }
-            Ok(Event::Incoming(i)) => {
-                trace!("Incoming: {:?}", i);
-            }
-            Ok(Event::Outgoing(o)) => {
-                trace!("Outgoing: {:?}", o);
-            }
-            Err(e) => {
-                error!("Error: {:?}", e);
-                continue;
-            }
-        };
-    };
-
+    for received in rx {
+        my_fsm.handle(received);
+    }
 }
