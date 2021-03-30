@@ -1,5 +1,5 @@
 use pretty_env_logger;
-#[macro_use] extern crate log;
+use log::trace;
 
 use rumqttc::{MqttOptions, Client, Event, Incoming};
 use std::thread;
