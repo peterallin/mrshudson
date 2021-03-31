@@ -1,39 +1,45 @@
 use log::debug;
 
 use rumqttc::{
-    Publish,
     Client,
+    Publish,
     // Incoming,
     // Packet,
-    QoS
+    QoS,
 };
-
 
 #[derive(Debug)]
 pub enum Event {
-    MQTT {
-        message: Publish
-    },
+    MQTT { message: Publish },
     Tick,
 }
 
-pub struct FSM {
-    state: Box<dyn FSMState>,
+pub struct FSM<'a> {
+    state: &'a dyn FSMState,
     client: Client,
 }
 
-impl FSM {
-    pub fn new(client: Client) -> FSM {
-        let mut fsm = FSM { state: Box::new(Initialization), client };
+impl<'a> FSM<'a> {
+    const INITIALIZATION: Initialization = Initialization;
+    const DAYTIME: Daytime = Daytime;
+
+    pub fn new(client: Client) -> FSM<'a> {
+        let mut fsm = FSM {
+            state: &Self::INITIALIZATION,
+            client,
+        };
         fsm.init();
         fsm
     }
 
     fn init(&mut self) {
         debug!("FSM init");
-        self.client.subscribe("shellies/+/+/+/announce", QoS::AtLeastOnce).unwrap();
-        self.client.publish("shellies/command", QoS::AtLeastOnce, false, "announce").unwrap();
-
+        self.client
+            .subscribe("shellies/+/+/+/announce", QoS::AtLeastOnce)
+            .unwrap();
+        self.client
+            .publish("shellies/command", QoS::AtLeastOnce, false, "announce")
+            .unwrap();
     }
 
     pub fn handle(&mut self, event: Event) {
@@ -42,23 +48,23 @@ impl FSM {
                 self.state.exit();
                 self.state = new_state;
                 self.state.enter();
-            },
-            None => debug!("Staying in the same state.")
+            }
+            None => debug!("Staying in the same state."),
         }
     }
 }
 
-trait FSMState {
+pub trait FSMState {
     fn enter(&self);
     fn exit(&self);
-    fn handle(&self, client: &mut Client, event: Event) -> Option<Box<dyn FSMState>>;
+    fn handle<'a>(&self, client: &mut Client, event: Event) -> Option<&'a dyn FSMState>;
 }
 
 // #[derive(Debug)]
 // struct Always;
 
 #[derive(Debug)]
-struct Initialization;
+pub struct Initialization;
 
 #[derive(Debug)]
 struct Daytime;
@@ -75,10 +81,10 @@ impl FSMState for Initialization {
         debug!("Exiting Initialization");
     }
 
-    fn handle(&self, _client: &mut Client, event: Event) -> Option<Box<dyn FSMState>> {
+    fn handle<'a>(&self, _client: &mut Client, event: Event) -> Option<&'a dyn FSMState> {
         debug!("Initialization handler");
         match event {
-            _ => Some(Box::new(Daytime))
+            _ => Some(&FSM::DAYTIME),
         }
     }
 }
@@ -92,14 +98,18 @@ impl FSMState for Daytime {
         debug!("Exiting Daytime");
     }
 
-    fn handle(&self, client: &mut Client, event: Event) -> Option<Box<dyn FSMState>> {
+    fn handle<'a>(&self, client: &mut Client, event: Event) -> Option<&'a dyn FSMState> {
         debug!("Daytime handle");
         match event {
-            Event::MQTT { message: m } => { debug!("{}", m.topic) },
+            Event::MQTT { message: m } => {
+                debug!("{}", m.topic)
+            }
             Event::Tick => {
                 debug!("Tick!");
-                client.publish("test/tick", QoS::AtLeastOnce, false, "Fneee").unwrap();
-            },
+                client
+                    .publish("test/tick", QoS::AtLeastOnce, false, "Fneee")
+                    .unwrap();
+            }
         }
         None
     }
