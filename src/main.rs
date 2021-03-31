@@ -1,4 +1,4 @@
-use log::trace;
+use log::{error, trace};
 use pretty_env_logger;
 
 use rumqttc::{Client, Connection, Event, Incoming, MqttOptions};
@@ -35,11 +35,9 @@ fn main() {
 }
 
 fn start_ticker(tx: Sender<fsm::Event>) -> JoinHandle<()> {
-    thread::spawn(move || {
-        loop {
-            tx.send(fsm::Event::Tick).unwrap();
-            thread::sleep(Duration::from_secs(1));
-        }
+    thread::spawn(move || loop {
+        tx.send(fsm::Event::Tick).unwrap();
+        thread::sleep(Duration::from_secs(1));
     })
 }
 
@@ -59,7 +57,8 @@ fn start_notification_receiver(
                 Ok(Event::Outgoing(o)) => {
                     trace!("Outgoing: {:?}", o);
                 }
-                Err(_) => {
+                Err(error) => {
+                    error!("Notification receiver got a ConnectionError: {}", error);
                     panic!("I panicked.");
                 }
             }
